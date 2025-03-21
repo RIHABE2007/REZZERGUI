@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css">
+    <style>
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        @media print {
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container my-5" id="contentToPrint">
+        <h2 class="mb-4">Gestion de Classe</h2>
+        
+        <div id="formContainer">
+            <div class="row">
+                <div class="col-md-6">
+                        <label for="matiere" class="form-label">Matière</label>
+                        <input type="text" class="form-control" id="matiere" placeholder="Informatique">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" placeholder="Entrer email">
+                    
+                
+                        <label for="date" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="date">
+                    
+                        <label for="prof" class="form-label">Professeur</label>
+                        <input type="text" class="form-control" id="prof">
+                        <label for="nombreEtudiants" class="form-label">Nombre d'étudiants</label>
+                        <input type="number" class="form-control" id="nombreEtudiants" min="1" value="1">
+                   
+                </div>
+            </div>
+            
+        </div>
+
+        <div class="table-container mb-3">
+            <table class="table table-bordered" id="studentTable">
+                <thead>
+                    <tr>
+                        <th>Id</th>
+                        <th>Code Massar</th>
+                        <th>Prénom</th>
+                        <th>Nom</th>
+                        <th>Note</th>
+                        <th>Appréciation</th>
+                        <th class="no-print">Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="no-print">
+            <button class="btn btn-primary mb-3" id="addStudentBtn">Ajouter Étudiant(s)</button>
+            <button class="btn btn-success" id="generatePdf">Générer PDF</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script>
+        let studentId = 1;
+
+        function addStudentRow() {
+            const tableBody = document.querySelector('#studentTable tbody');
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${studentId++}</td>
+                <td><input type="text" class="form-control code-massar" oninput="validateMassarCode(this)"></td>
+                <td><input type="text" class="form-control"></td>
+                <td><input type="text" class="form-control"></td>
+                <td><input type="number" class="form-control note" min="0" max="20" oninput="updateAppreciation(this)"></td>
+                <td><input type="text" class="form-control appreciation" readonly></td>
+                <td class="no-print"><button class="btn btn-danger" onclick="deleteRow(this)">Supprimer</button></td>
+            `;
+            tableBody.appendChild(row);
+        }
+
+        function deleteRow(button) {
+            button.closest('tr').remove();
+            updateStudentIds();
+        }
+
+        function updateStudentIds() {
+            const rows = document.querySelectorAll('#studentTable tbody tr');
+            rows.forEach((row, index) => {
+                row.cells[0].textContent = index + 1;
+            });
+            studentId = rows.length + 1;
+        }
+
+        function validateMassarCode(input) {
+            const regex = /^[A-Z][0-9]{1,8}$/;
+            if (!regex.test(input.value)) {
+                input.style.borderColor = "red";
+            } else {
+                input.style.borderColor = "";
+            }
+        }
+
+        function updateAppreciation(input) {
+            const note = parseFloat(input.value);
+            const appreciationInput = input.closest('tr').querySelector('.appreciation');
+            
+            if (isNaN(note)) {
+                appreciationInput.value = "";
+            } else if (note >= 16) {
+                appreciationInput.value = "Très Bien";
+            } else if (note >= 14) {
+                appreciationInput.value = "Bien";
+            } else if (note >= 12) {
+                appreciationInput.value = "Assez Bien";
+            } else if (note >= 10) {
+                appreciationInput.value = "Passable";
+            } else {
+                appreciationInput.value = "Insuffisant";
+            }
+        }
+
+        document.getElementById('addStudentBtn').addEventListener('click', () => {
+            const nombreEtudiants = parseInt(document.getElementById('nombreEtudiants').value) || 1;
+            for (let i = 0; i < nombreEtudiants; i++) {
+                addStudentRow();
+            }
+        });
+
+        document.getElementById('generatePdf').addEventListener('click', async () => {
+            const { jsPDF } = window.jspdf;
+            
+            const actionsButtons = document.querySelectorAll('.no-print');
+            actionsButtons.forEach(el => el.style.display = 'none');
+            
+            try {
+                const contentElement = document.getElementById('contentToPrint');
+                const canvas = await html2canvas(contentElement, {
+                    scale: 1,
+                    useCORS: true,
+                    logging: false
+                });
+                
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                
+                const imgWidth = 210; 
+                const imgHeight = canvas.height * imgWidth / canvas.width;
+                
+                pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+                
+                const matiere = document.getElementById('matiere').value || 'Classe';
+                pdf.save(`${matiere}.pdf`);
+            } catch (error) {
+                console.error('Erreur lors de la génération du PDF:', error);
+                alert('Erreur lors de la génération du PDF. Veuillez réessayer.');
+            } finally {
+                actionsButtons.forEach(el => el.style.display = '');
+            }
+        });
+    </script>
+</body>
+</html>
